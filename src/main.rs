@@ -1,6 +1,6 @@
 use anyhow::{bail, Result};
 use std::fs::File;
-use std::io::prelude::*;
+use std::io::{prelude::*, SeekFrom};
 
 fn main() -> Result<()> {
     // Parse arguments
@@ -20,14 +20,29 @@ fn main() -> Result<()> {
             file.read_exact(&mut header)?;
 
             // The page size is stored at the 16th byte offset, using 2 bytes in big-endian order
-            #[allow(unused_variables)]
             let page_size = u16::from_be_bytes([header[16], header[17]]);
 
-            // You can use print statements as follows for debugging, they'll be visible when running tests.
-            println!("Logs from your program will appear here!");
+            println!("database page size: {}", page_size);
 
-            // Uncomment this block to pass the first stage
-            // println!("database page size: {}", page_size);
+            file.seek(SeekFrom::Start(0))?;
+
+            let mut schema_information = vec![0; page_size as usize];
+
+            // First 100 bytes are allocated for header
+            let header_size: usize = 100;
+
+            if let Err(e) = file.read_exact(&mut schema_information) {
+                eprintln!("Error: {}", e);
+            }
+
+            // The two-byte integer at offset 3 gives the number of cells on the page (from docs)
+            println!(
+                "number of tables: {}",
+                u16::from_be_bytes([
+                    schema_information[header_size + 3],
+                    schema_information[header_size + 4]
+                ])
+            );
         }
         _ => bail!("Missing or invalid command passed: {}", command),
     }
